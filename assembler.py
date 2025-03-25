@@ -97,7 +97,8 @@ def assemble(code: str) -> tuple[list[int], tuple[int, int], dict[int, tuple[int
                     segments_templates[-1].append((instr_params, args, info))
                     break
             else:
-                raise AssertionError(f"Invalid arguments for instruction {instr}")
+                raise AssertionError(
+                    f"Invalid arguments for instruction {instr}")
 
         if has_prefix:
             info["expected_length"] += 1
@@ -149,14 +150,14 @@ def parse_line_parts(line: str) -> tuple[str, str, list[str]]:
     if " " not in line:
         return line, "", []
 
+    line, _ = split_on(line, ";")
+
     label, line = line.split(" ", 1)  # If no label, empty string
 
     instr, line = split_on(line, " ")
 
     instr = instr.upper()
     instr = INSTRUCTION_ALIASES.get(instr, instr)
-
-    line, _ = split_on(line, ";")
 
     args = [l.strip() for l in line.split(",")]
 
