@@ -61,7 +61,10 @@ def assemble(code: str) -> tuple[list[int], tuple[int, int], dict[int, tuple[int
         if instr.strip() == "":  # No instruction, only label
             continue
 
-        if instr in DATA_INSTRUCTIONS:
+        if instr in EXPLICITLY_NOT_SUPPORTED_INSTRUCTIONS:
+            raise AssertionError(
+                f"Emulator does not support instruction {instr}")
+        elif instr in DATA_INSTRUCTIONS:
             match instr[-1]:
                 case "B":
                     size = 8
