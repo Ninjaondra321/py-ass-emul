@@ -376,7 +376,7 @@ class Emulator:
 
         self.update_of(signed_result, instruction.size)
         # CF se nemění
-        self.update_flags(val, instruction.size, [ZF, PF, SF])
+        self.update_flags(result, instruction.size, [ZF, PF, SF])
 
     def DEC(self, instruction):
         val = self.get_value(instruction.arguments[0])
@@ -388,7 +388,7 @@ class Emulator:
 
         self.update_of(signed_result, instruction.size)
         # CF se nemění
-        self.update_flags(val, instruction.size, [ZF, PF, SF])
+        self.update_flags(result, instruction.size, [ZF, PF, SF])
 
     def NEG(self, instruction):
         val = self.get_value(instruction.arguments[0])
