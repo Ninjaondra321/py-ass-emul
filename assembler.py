@@ -20,94 +20,101 @@ def assemble(code: str) -> tuple[list[int], tuple[int, int], dict[int, tuple[int
     labels_segment = {}
 
     for i, line in enumerate(code.split("\n")):
-        line = re.sub(r'\s+', ' ', line)  # Make all whitespace one space
-        line = line.replace("'$'", '0')
-        line = line.replace('"$"', '0')
+        try:
+            line = re.sub(r'\s+', ' ', line)  # Make all whitespace one space
+            line = line.replace("'$'", '0')
+            line = line.replace('"$"', '0')
 
-        line = line.replace(" BYTE ", " byte ")
-        line = line.replace(" WORD ", " word ")
-        line = line.replace(" DOUBLEWORD ", " doubleword ")
+            line = line.replace(" BYTE ", " byte ")
+            line = line.replace(" WORD ", " word ")
+            line = line.replace(" DOUBLEWORD ", " doubleword ")
 
-        if line.strip() == "" or line.lstrip().startswith(";"):
-            continue
+            if line.strip() == "" or line.lstrip().startswith(";"):
+                continue
 
-        if line.startswith("segment"):
-            if segment_length != 0:
-                total_length += bytes_remaining_in_segment(segment_length)
+            if line.startswith("segment"):
+                if segment_length != 0:
+                    total_length += bytes_remaining_in_segment(segment_length)
 
-            segment = line.split(" ")[1]
-            segment_length = 0
-            labels[segment] = total_length // 16
-            segments_templates.append([])
+                segment = line.split(" ")[1]
+                segment_length = 0
+                labels[segment] = total_length // 16
+                segments_templates.append([])
 
-            continue
+                continue
 
-        # Needs to be rewritten
-        info_for_line_linting[total_length] = (i, line)
+            # Needs to be rewritten
+            info_for_line_linting[total_length] = (i, line)
 
-        label, instr, args = parse_line_parts(line)
+            label, instr, args = parse_line_parts(line)
 
-        if label != "":
-            label = label.replace(":", "")
-            labels[label] = segment_length
-            # Bolí mě z toho oči, ale nestíhám. TODO: Přepsat
-            labels_segment[label] = segment
+            if label != "":
+                label = label.replace(":", "")
+                labels[label] = segment_length
+                # Bolí mě z toho oči, ale nestíhám. TODO: Přepsat
+                labels_segment[label] = segment
 
-        if label in ["start", "..start"]:
-            start = (labels[segment], len(templates))
+            if label in ["start", "..start"]:
+                start = (labels[segment], len(templates))
 
-        has_prefix = contains_prefix(line)
+            has_prefix = contains_prefix(line)
 
-        if instr.strip() == "":  # No instruction, only label
-            continue
+            if instr.strip() == "":  # No instruction, only label
+                continue
 
-        if instr in EXPLICITLY_NOT_SUPPORTED_INSTRUCTIONS:
-            raise AssertionError(
-                f"Emulator does not support instruction {instr}")
-        elif instr in DATA_INSTRUCTIONS:
-            match instr[-1]:
-                case "B":
-                    size = 8
-                case "W":
-                    size = 16
-                case "D":
-                    size = 32
-
-            if instr[0] == "D":
-                expected_length = len(args) * (size // 8)
-
-            elif "RES" in instr:
-                # Tady snad nikdo nebude dávat návěští. Hlavně delku potřebuju vědět už tu.
-                expected_length = calculate_value(args[0], {}) * (size // 8)
-
-            info = {"expected_length": expected_length,
-                    # This is so cursed (ale nestíhám, takže to budeš muset přežít)
-                    "size": size,
-                    "instruction": instr
-                    }
-            # Code triplicity
-            segments_templates[-1].append(("skip", args, info))
-
-        else:
-            size = get_instruction_size(instr, args)
-            if instr+str(size) not in INSTRUCTIONS_v2:
-                raise AssertionError(f"Unknown instruction {instr}")
-            possible_codes = INSTRUCTIONS_v2[instr+str(size)]
-            for instr_params, info in possible_codes:
-                if matches_args(instr_params.split(" "), args):
-                    info = info.copy()
-                    # Code triplicity
-                    segments_templates[-1].append((instr_params, args, info))
-                    break
-            else:
+            if instr in EXPLICITLY_NOT_SUPPORTED_INSTRUCTIONS:
                 raise AssertionError(
-                    f"Invalid arguments for instruction {instr}")
+                    f"Emulator does not support instruction {instr}")
+            elif instr in DATA_INSTRUCTIONS:
+                match instr[-1]:
+                    case "B":
+                        size = 8
+                    case "W":
+                        size = 16
+                    case "D":
+                        size = 32
 
-        if has_prefix:
-            info["expected_length"] += 1
+                if instr[0] == "D":
+                    expected_length = len(args) * (size // 8)
 
-        segment_length += info["expected_length"]
-        total_length += info["expected_length"]
+                elif "RES" in instr:
+                    # Tady snad nikdo nebude dávat návěští. Hlavně delku potřebuju vědět už tu.
+                    expected_length = calculate_value(
+                        args[0], {}) * (size // 8)
+
+                info = {"expected_length": expected_length,
+                        # This is so cursed (ale nestíhám, takže to budeš muset přežít)
+                        "size": size,
+                        "instruction": instr
+                        }
+                # Code triplicity
+                segments_templates[-1].append(("skip", args, info))
+
+            else:
+                size = get_instruction_size(instr, args)
+                if instr+str(size) not in INSTRUCTIONS_v2:
+                    raise AssertionError(f"Unknown instruction {instr}")
+                possible_codes = INSTRUCTIONS_v2[instr+str(size)]
+                for instr_params, info in possible_codes:
+                    if matches_args(instr_params.split(" "), args):
+                        info = info.copy()
+                        # Code triplicity
+                        segments_templates[-1].append(
+                            (instr_params, args, info))
+                        break
+                else:
+                    raise AssertionError(
+                        f"Invalid arguments for instruction {instr}")
+
+            if has_prefix:
+                info["expected_length"] += 1
+
+            segment_length += info["expected_length"]
+            total_length += info["expected_length"]
+
+        except Exception as e:
+            raise AssertionError(
+                f"Error while assembling line {i}: {line}: {e}")
 
     bytecode = []
 
