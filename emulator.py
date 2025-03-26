@@ -265,7 +265,7 @@ class Emulator:
 
     def update_of(self, result, opsize):
         """TAKES AS ARGUMENT SIGNED RESULT"""
-        is_overflow = 2**(opsize - 1) <= result < 2**(opsize - 1)
+        is_overflow = not (-2**(opsize - 1) <= result < 2**(opsize - 1))
         self.set_flag(OF, is_overflow)
 
     def update_flags(self, result: int, opsize: int, flags: list[int],
@@ -314,12 +314,8 @@ class Emulator:
         signed_result = from_twos_complement(val1, instruction.size) + \
             from_twos_complement(val2, instruction.size)
 
-        if result > 2**instruction.size:
-            self.set_flag(CF, 1)
-            result = result % 2**instruction.size
-
-        if 2**(instruction.size - 1) <= signed_result < 2**instruction.size:
-            self.set_flag(OF, 1)
+        self.update_of(signed_result, instruction.size)
+        self.update_cf(result, instruction.size)
 
         self.set_value(instruction.arguments[0], result % (
             2**instruction.size), instruction.size)
@@ -435,7 +431,7 @@ class Emulator:
 
         is_out_of_range = not (0 <= result < 2**instruction.size)
         if divisor == 0 or is_out_of_range:
-            if is_out_of_range: 
+            if is_out_of_range:
                 print("Výsledek dělení nespadá do rozsahu zobrazení.")
             instr = Instruction()
             instr.operation = "INT"
@@ -460,22 +456,23 @@ class Emulator:
             val = from_twos_complement(self.get_register(
                 "DX") * 2**16 + self.get_register("AX"), 16)
 
-        divisor = from_twos_complement(self.get_value(instruction.arguments[0]), instruction.size)
-        
+        divisor = from_twos_complement(self.get_value(
+            instruction.arguments[0]), instruction.size)
+
         result = 0
         if divisor != 0:
             result = to_twos_complement(val // divisor, instruction.size)
 
         is_out_of_range = not (0 <= result < 2**instruction.size)
         if divisor == 0 or is_out_of_range:
-            if is_out_of_range: 
+            if is_out_of_range:
                 print("Výsledek dělení nespadá do rozsahu zobrazení.")
             instr = Instruction()
             instr.operation = "INT"
             instr.arguments = [Immutable(0)]
             self.INT(instr)
             return
-        
+
         remainder = abs(val % divisor)
         if val < 0:
             remainder = to_twos_complement(-remainder, instruction.size)
@@ -778,7 +775,8 @@ class Emulator:
                           != get_bit(result, instruction.size - 1))
 
     def RCR(self, instruction):
-        val = self.get_value(instruction.arguments[0]) + (self.get_flag(CF) << instruction.size)
+        val = self.get_value(
+            instruction.arguments[0]) + (self.get_flag(CF) << instruction.size)
         count = self.get_value(instruction.arguments[1])
 
         result = (val >> count) + (val << (instruction.size - count + 1))
@@ -788,7 +786,8 @@ class Emulator:
         self.set_flag(CF, get_bit(result, instruction.size))
 
     def RCL(self, instruction):
-        val = self.get_value(instruction.arguments[0]) | (self.get_flag(CF) << instruction.size)
+        val = self.get_value(instruction.arguments[0]) | (
+            self.get_flag(CF) << instruction.size)
         count = self.get_value(instruction.arguments[1])
 
         result = (val << count) + (val >> (instruction.size - count + 1))
