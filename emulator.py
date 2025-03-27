@@ -552,14 +552,13 @@ class Emulator:
     def JMP(self, instruction):
         if isinstance(instruction.arguments[0], Pointer):
             # Far jump
-            self.set_register("IP", instruction.arguments[0].offset)
+            self.set_register("IP", ((instruction.arguments[0].offset - len(instruction.bytes)) % (2**16)))
             self.set_register("CS", instruction.arguments[0].segment)
         else:
             # Near jump
             assert isinstance(instruction.arguments[0], Immutable)
             where_to = from_twos_complement(
                 instruction.arguments[0].value, instruction.size)
-            # where_to += 1  # TODO: Why +1!?
             where_to += self.get_register("IP")
             where_to %= 2**16
 
