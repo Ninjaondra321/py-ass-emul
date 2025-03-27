@@ -208,9 +208,9 @@ def get_instruction_size(instruction: str, args: list[str]) -> int:
         return 0 if args[0] == "3" else 8
 
     if instruction in ["JMP", "CALL"]:
-        if "SHORT" in args[0]:
+        if "SHORT" in args[0].upper():
             return 8
-        if "FAR" in args[0]:
+        if "FAR" in args[0].upper():
             return 32
         return 16
 
@@ -293,7 +293,7 @@ def matches_args(templates: list[str], args: list[str]):
             continue
 
         if "A" in templ:
-            if "FAR" not in arg:
+            if "FAR" not in arg.upper():
                 return False
             continue
 
@@ -363,6 +363,7 @@ def convert_to_bytes(args: list[str], parameters: str, info: Info,
                 else:
                     # FAR JMP/CALL
                     arg = arg.replace("FAR ", "")
+                    arg = arg.replace("far ", "")
                     if arg not in labels:
                         if "+" in arg:
                             raise AssertionError(
