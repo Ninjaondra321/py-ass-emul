@@ -552,7 +552,8 @@ class Emulator:
     def JMP(self, instruction):
         if isinstance(instruction.arguments[0], Pointer):
             # Far jump
-            self.set_register("IP", ((instruction.arguments[0].offset - len(instruction.bytes)) % (2**16)))
+            self.set_register(
+                "IP", ((instruction.arguments[0].offset - len(instruction.bytes)) % (2**16)))
             self.set_register("CS", instruction.arguments[0].segment)
         else:
             # Near jump
@@ -706,7 +707,9 @@ class Emulator:
 
             case 0x0A:  # Načíst řetězec
                 offset = self.get_register("DX")
-                max_len = self.get_byte("DS", offset)  # Length
+                buffer_len = self.get_byte("DS", offset)  # Length
+                max_len = min(buffer_len, len(self.console_input))
+
                 self.set_flag(ZF, 0)
 
                 if self.console_input == "":
