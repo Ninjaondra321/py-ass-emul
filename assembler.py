@@ -399,6 +399,9 @@ def convert_to_bytes(args: list[str], parameters: str, info: Info,
             case "I":
                 val = calculate_value(arg, labels)
                 size = 8 if param[1] == "b" else 16
+                if val > 2**size:
+                    raise AssertionError(f"Hodnota {arg} nespadá do rozsahu {size} bitů.")
+
                 info["data"].extend(int_to_bytes(val, size))
 
             case "G":
@@ -515,10 +518,10 @@ def parse_number(s: str) -> int:
     if s[0] in "\"'" and s[-1] in "\"'":
         value = 0
         for i in range(1, len(s)-1):
+            value *= 256
             byte_val = ord(s[i])
             assert 0 <= byte_val <= 256, f"Invalid character \"{s[i]}\""
-
-            value *= 256
+            value += byte_val
         return value
 
     if s[-1] == "h":
