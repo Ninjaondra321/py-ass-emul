@@ -723,11 +723,12 @@ class Emulator:
                     self.console_input = self.console_input[1:]
 
                     if char == "\n":
+                        i -= 1  # Protože se znak nezapočítal
                         break
 
                     self.set_byte("DS", offset + i + 2, ord(char))
 
-                self.set_byte("DS", offset + 1, i)
+                self.set_byte("DS", offset + 1, i+1)
 
     def INTO(self, instruction):
         if self.get_flag(OF) == 1:
