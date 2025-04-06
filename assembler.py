@@ -400,7 +400,8 @@ def convert_to_bytes(args: list[str], parameters: str, info: Info,
                 val = calculate_value(arg, labels)
                 size = 8 if param[1] == "b" else 16
                 if val > 2**size:
-                    raise AssertionError(f"Hodnota {arg} nespadá do rozsahu {size} bitů.")
+                    raise AssertionError(
+                        f"Hodnota {arg} nespadá do rozsahu {size} bitů.")
 
                 info["data"].extend(int_to_bytes(val, size))
 
@@ -543,37 +544,3 @@ def int_to_bytes(val: int, size: int) -> list[int]:
         val //= 2**8
 
     return output
-
-
-if __name__ == "__main__":
-    jmps = """
-segment code
-        JMP loop_s
-        JMP FAR dno
-
-loop_s  MOV AX, 0
-        HLT
-
-segment stack
-        resb 16
-        db 14
-dno:    db ?
-n       db 42
-"""
-
-    code2 = """
-segment code
-    db 'hello', 15, 'world'
-    dw 'hello', "world"
-"""
-
-    # program = assemble("segment code \nllaabel ADD AX, BX")
-    program = assemble(code2)
-    print(program)
-    print([hex(b) for b in program if b is not None])
-
-    # from disassembler import parse_next_instruction
-
-    # x = parse_next_instruction(program, 0)
-
-    # print(x)
