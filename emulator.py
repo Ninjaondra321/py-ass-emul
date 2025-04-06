@@ -653,8 +653,9 @@ class Emulator:
     # ------- INTERUPT INSTRUCTIONS: --------
 
     def INT(self, instruction):
-        print("Program was interrupted with: INT",
-              instruction.arguments[0].value)
+        if self.debugging_mode:
+            print("Program was interrupted with: INT",
+                  instruction.arguments[0].value)
 
         if instruction.arguments[0].value == 0x21:
             self.INT21h(instruction)
