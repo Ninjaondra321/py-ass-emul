@@ -3,12 +3,12 @@ from disassembler import *
 import re
 from converting_functions import *
 
-Info = dict[str, None | int | list[int]]
+Info = int
 
 MAX_SEGMENT_SIZE = 2**16
 
 
-def assemble(code: str) -> tuple[list[int], tuple[int, int], dict[int, tuple[int, str]]]:
+def assemble(code: str):
     labels = {}
     info_for_line_linting = {}
     start = (0, 0)
@@ -66,13 +66,13 @@ def assemble(code: str) -> tuple[list[int], tuple[int, int], dict[int, tuple[int
                 raise AssertionError(
                     f"Emulator does not support instruction {instr}")
             elif instr in DATA_INSTRUCTIONS:
-                match instr[-1]:
-                    case "B":
-                        size = 8
-                    case "W":
-                        size = 16
-                    case "D":
-                        size = 32
+                last = instr[-1]          # grab the final letter once
+                if last == "B":
+                    size = 8
+                elif last == "W":
+                    size = 16
+                elif last == "D":
+                    size = 32
 
                 if instr[0] == "D":
                     expected_length = len(args) * (size // 8)
@@ -149,12 +149,12 @@ def bytes_remaining_in_segment(segment_length: int) -> int:
     return 16 - (segment_length % 16) if segment_length % 16 != 0 else 0
 
 
-def convert_string_arg_to_numbers(arg: str) -> list[str]:
+def convert_string_arg_to_numbers(arg: str):
     assert arg[0] in STRING_QUOTES and arg[-1] in STRING_QUOTES
     return [str(ord(c)) for c in arg[1:-1]]
 
 
-def parse_line_parts(line: str) -> tuple[str, str, list[str]]:
+def parse_line_parts(line: str):
     line = capitalize_registers(line)
 
     if " " not in line:
@@ -190,7 +190,7 @@ def parse_line_parts(line: str) -> tuple[str, str, list[str]]:
     return label, instr, args
 
 
-def split_on(line: str, char: str) -> tuple[str, str]:
+def split_on(line: str, char: str):
     return line.split(char, 1) if char in line else (line, "")
 
 
@@ -199,7 +199,7 @@ def capitalize_registers(assembly_code):
     return re.sub(pattern, lambda m: m.group(0).upper(), assembly_code)
 
 
-def get_instruction_size(instruction: str, args: list[str]) -> int:
+def get_instruction_size(instruction: str, args) -> int:
     """Returns 0/8/16"""
     if instruction in INSTRUCTIONS_WITHOUT_PARAMETER or instruction in DATA_INSTRUCTIONS:
         return 0
@@ -253,7 +253,7 @@ def get_instruction_size(instruction: str, args: list[str]) -> int:
     return size
 
 
-def matches_args(templates: list[str], args: list[str]):
+def matches_args(templates, args):
     if len(templates) != len(args):
         return False
     # assert len(templates) == len(args), "Nevalidní počet argumentů"
@@ -304,13 +304,13 @@ def matches_args(templates: list[str], args: list[str]):
     return True
 
 
-def convert_to_bytes(args: list[str], parameters: str, info: Info,
+def convert_to_bytes(args, parameters: str, info: Info,
                      # Hej už se to tu dost množí argumenty - chtělo by to přepracovat :-(
-                     labels: dict[str, int],
+                     labels,
                      curr_instr_idx: int,  # TODO: Lepší název
                      # TODO: Tohle už je cursed. Vymyslet lepší label architecutre
-                     labels_segment: dict[str, str]
-                     ) -> list[int]:
+                     labels_segment
+                     ):
     """Converts instruction to bytecode."""
     # ! NOT TESTED !
     output = []
@@ -352,118 +352,111 @@ def convert_to_bytes(args: list[str], parameters: str, info: Info,
             # Encoded in opcode, no more details needed
             continue
 
-        match param[0]:
-            case "A":
-                if ":" in arg:
-                    seg, off = [p.strip() for p in arg.split(":")]
-                    info["data"].extend(int_to_bytes(
-                        calculate_value(off, labels), 16))
-                    info["data"].extend(int_to_bytes(
-                        calculate_value(seg, labels), 16))
+        if param[0] == "A":
+            if ":" in arg:
+                seg, off = [p.strip() for p in arg.split(":")]
+                info["data"].extend(int_to_bytes(
+                    calculate_value(off, labels), 16))
+                info["data"].extend(int_to_bytes(
+                    calculate_value(seg, labels), 16))
+            else:
+                # FAR JMP/CALL
+                arg = arg.replace("FAR ", "")
+                arg = arg.replace("far ", "")
+                if arg not in labels:
+                    if "+" in arg:
+                        raise AssertionError(
+                            f"Při FAR JMP/CALL prosím nepoužívejte matematiku. (kdyby něco, pište na DF)")
+
+                info["data"].extend(int_to_bytes(labels[arg], 16))
+                info["data"].extend(int_to_bytes(
+                    labels[labels_segment[arg]], 16))  # So cursed
+
+        elif param[0] == "J":
+            # Relative offset
+            size = 8 if param[1] == "b" else 16
+
+            desitny = calculate_value(arg, labels)
+            dist = desitny - curr_instr_idx - info["expected_length"]
+
+            if dist >= 0:
+                # Because there are added NOPs to shorter instructions than expected
+                my_length = 1 if "prefix" in info else 0
+                my_length += 1  # opcode
+                my_length += 1 if size == 8 else 2
+
+                dist += info["expected_length"] - my_length
+
+            assert -2**(size-1) <= dist < 2**(size - 1), f"Relative jump too far: {dist}"
+            dist = to_twos_complement(
+                desitny - curr_instr_idx - info["expected_length"], size)
+            bytes = int_to_bytes(dist, size)
+            info["data"].extend(bytes)
+
+        elif param[0] == "I":
+            val = calculate_value(arg, labels)
+            size = 8 if param[1] == "b" else 16
+            if val > 2**size:
+                raise AssertionError(
+                    f"Hodnota {arg} nespadá do rozsahu {size} bitů.")
+
+            info["data"].extend(int_to_bytes(val, size))
+
+        elif param[0] == "G":
+            reg_val = 0
+            if param[1] == "b":
+                reg_val = RM_8_REGS.index(arg)
+            else:
+                reg_val = RM_16_REGS.index(arg)
+
+            if "modrm" not in info:
+                info["modrm"] = 0
+
+            info["modrm"] += reg_val * 8  # Reg part of modrm
+
+        elif param[0] == "E":
+            if "modrm" not in info:
+                info["modrm"] = 0
+
+            rm_val, mod_val = 0, 0
+            is_special = False
+            if arg[0] == "[" and arg[-1] == "]":
+                arg = arg[1:-1]  # Strip brackets
+
+                for i, regref in enumerate(MOD_00_RM):
+                    if regref in arg:
+                        rm_val = i
+                        arg = arg.replace(regref, "")
+                        break
                 else:
-                    # FAR JMP/CALL
-                    arg = arg.replace("FAR ", "")
-                    arg = arg.replace("far ", "")
-                    if arg not in labels:
-                        if "+" in arg:
-                            raise AssertionError(
-                                f"Při FAR JMP/CALL prosím nepoužívejte matematiku. (kdyby něco, pište na DF)")
+                    is_special = True
+                    rm_val = 6  # Only displacement
 
-                    info["data"].extend(int_to_bytes(labels[arg], 16))
-                    info["data"].extend(int_to_bytes(
-                        labels[labels_segment[arg]], 16))  # So cursed
+                if arg != "":
+                    displ = calculate_value(arg, labels)
+                    size = 8 if displ < 2**8 else 16
+                    if not is_special:
+                        info["data"].extend(int_to_bytes(displ, size))
+                        mod_val = size // 8
+                    else:
+                        info["data"].extend(int_to_bytes(displ, 16))
 
-            case "J":
-                # Relative offset
-                # Calculate distance, assert distance < 2**x
-                size = 8 if param[1] == "b" else 16
-
-                desitny = calculate_value(arg, labels)
-                dist = desitny - curr_instr_idx - info["expected_length"]
-
-                if dist >= 0:
-                    # Because there are added NOPs to shorter instructions than expected
-                    my_length = 1 if "prefix" in info else 0
-                    my_length += 1  # opcode
-                    my_length += 1 if size == 8 else 2
-
-                    dist += info["expected_length"] - my_length
-
-                assert -2**(size-1) <= dist < 2**(size -
-                                                  1), f"Relative jump too far: {dist}"
-                dist = to_twos_complement(
-                    desitny - curr_instr_idx - info["expected_length"], size)
-                bytes = int_to_bytes(dist, size)
-                info["data"].extend(bytes)
-
-            case "I":
-                val = calculate_value(arg, labels)
-                size = 8 if param[1] == "b" else 16
-                if val > 2**size:
-                    raise AssertionError(
-                        f"Hodnota {arg} nespadá do rozsahu {size} bitů.")
-
-                info["data"].extend(int_to_bytes(val, size))
-
-            case "G":
-                reg_val = 0
+            else:
+                mod_val = 3  # Register mode
                 if param[1] == "b":
-                    reg_val = RM_8_REGS.index(arg)
+                    rm_val = RM_8_REGS.index(arg)
                 else:
-                    reg_val = RM_16_REGS.index(arg)
+                    rm_val = RM_16_REGS.index(arg)
 
-                if "modrm" not in info:  # Code triplicity
-                    info["modrm"] = 0
+            info["modrm"] += rm_val
+            info["modrm"] += mod_val * 64
 
-                info["modrm"] += reg_val * 8  # Reg part of modrm
-
-            case "E":
-                if "modrm" not in info:  # Code triplicity
-                    info["modrm"] = 0
-
-                rm_val, mod_val = 0, 0
-                # if mod=00 and rm=110 (only 16 displacement)
-                is_special = False
-                if arg[0] == "[" and arg[-1] == "]":
-                    # Assert arg is without prefix
-                    arg = arg[1:-1]
-
-                    for i, regref in enumerate(MOD_00_RM):
-                        if regref in arg:
-                            rm_val = i
-                            arg = arg.replace(regref, "")
-                            break
-                    else:
-                        is_special = True
-                        rm_val = 6  # Only displacement - protože prostě někdo si řelk, jo, tohle je dobrý nápad. viz tabulka
-
-                    if arg != "":
-                        displ = calculate_value(arg, labels)
-                        size = 8 if displ < 2**8 else 16
-                        if not is_special:
-                            info["data"].extend(int_to_bytes(displ, size))
-                            mod_val = size // 8
-                        else:
-                            info["data"].extend(int_to_bytes(displ, 16))
-
-                else:
-                    mod_val = 3  # Selects register
-                    if param[1] == "b":
-                        rm_val = RM_8_REGS.index(arg)
-                    else:
-                        rm_val = RM_16_REGS.index(arg)
-
-                info["modrm"] += rm_val
-                info["modrm"] += mod_val * 64
-
-            case "S":
-                # Segment register
-                if "modrm" not in info:  # Code triplicity
-                    info["modrm"] = 0
-                reg_val = SEG_REGS.index(arg)
-                info["modrm"] += reg_val * 8
-                # ? Snad je to správně
-
+        elif param[0] == "S":
+            if "modrm" not in info:
+                info["modrm"] = 0
+            reg_val = SEG_REGS.index(arg)
+            info["modrm"] += reg_val * 8
+            
     if "E" in "".join(parameters):
         to_fill = info["expected_length"] - len(info["data"]) - (
             1 if "prefix" in info else 0) - (1 if "modrm" in info else 0) - 1
@@ -486,9 +479,19 @@ def convert_to_bytes(args: list[str], parameters: str, info: Info,
     return output
 
 
-def calculate_value(arg: str, labels: dict[str, int]) -> int | None:
+def calculate_value(arg: str, labels) :
     """Returns the value of the argument."""
-    parts = re.split(r"(?=[+-])", arg)  # Splits by + and -, but keeps it in
+    # parts = re.split(r"(?=[+-])", arg)  # Splits by + and -, but keeps it in
+
+    tokens = re.split(r'([+-])', arg)
+    # tokens: ['3', '+', '5', '-', '2']
+
+    # Combine sign with number
+    parts = [tokens[0]]
+    for i in range(1, len(tokens), 2):
+        parts.append(tokens[i] + tokens[i+1])
+
+
     runnung_sum = 0
 
     for part in parts:
@@ -532,7 +535,7 @@ def parse_number(s: str) -> int:
     return int(s)
 
 
-def int_to_bytes(val: int, size: int) -> list[int]:
+def int_to_bytes(val: int, size: int) :
     """Returns list of bytes, of the number in little endian."""
     if val < 0:
         val += 2**size

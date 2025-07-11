@@ -5,11 +5,11 @@ from converting_functions import *
 
 class Emulator:
 
-    def __init__(self, program, start: tuple[int, int] = (0, 0), lines_info: list[tuple[int, str]] = []):
+    def __init__(self, program, start= (0, 0), lines_info = []):
         self.instructions_counter = 0
         self.max_instructions = 10_000
 
-        self.debugging_mode: bool = True
+        self.debugging_mode = True
 
         self.registers = {
             # 16-bitový registr AX je složen ze dvou 8-botivých registrů AH,AL
@@ -201,34 +201,33 @@ class Emulator:
     def get_value(self, arg: Parameter):
         output = None
 
-        match arg:
-            case Immutable():
-                output = arg.value
-            case Memmory():
-                offset = arg.displacement
-                for reg in arg.source.split("+"):
-                    if reg != "":
-                        offset += self.get_register(reg)
-                output = self.get_byte(arg.segment, offset)
-            case Register():
-                output = self.get_register(arg.name)
+        if isinstance(arg, Immutable):
+            output = arg.value
+        elif isinstance(arg, Memmory):
+            offset = arg.displacement
+            for reg in arg.source.split("+"):
+                if reg != "":
+                    offset += self.get_register(reg)
+            output = self.get_byte(arg.segment, offset)
+        elif isinstance(arg, Register):
+            output = self.get_register(arg.name)
 
         return output
 
     def set_value(self, arg, val, size):
-        match arg:
-            case Register():
-                self.set_register(arg.name, val)
-            case Memmory():
-                offset = arg.displacement
+        if isinstance(arg, Register):
+            self.set_register(arg.name, val)
 
-                if arg.source not in ["", None]:
-                    for reg in arg.source.split("+"):
-                        offset += self.get_register(reg)
+        elif isinstance(arg, Memmory):
+            offset = arg.displacement
 
-                for i in range(size // 8):
-                    self.set_byte(arg.segment, offset + i, val % 2**8)
-                    val //= 2**8
+            if arg.source not in ["", None]:
+                for reg in arg.source.split("+"):
+                    offset += self.get_register(reg)
+
+            for i in range(size // 8):
+                self.set_byte(arg.segment, offset + i, val % 2**8)
+                val //= 2**8
 
     # ------- FLAGS: --------
     def set_flag(self, flag: Flag, val: bool):
@@ -268,8 +267,8 @@ class Emulator:
         is_overflow = not (-2**(opsize - 1) <= result < 2**(opsize - 1))
         self.set_flag(OF, is_overflow)
 
-    def update_flags(self, result: int, opsize: int, flags: list[int],
-                     previous_numbers: list[int] = []  # TODO: Lepší jméno
+    def update_flags(self, result: int, opsize: int, flags,
+                     previous_numbers = []  # TODO: Lepší jméno
                      ):
         """Nastaví požadované příznaky. Výsledek vkládejte v přímém kódu s případným přetečením."""
         cropped_result = result % 2**opsize
@@ -611,26 +610,25 @@ class Emulator:
             self.relative_jump(instruction)
             return
 
-        match instruction.operation:
-            case "JL":
-                if self.get_flag(SF) != self.get_flag(OF):
-                    self.relative_jump(instruction)
+        if instruction.operation == "JL":
+            if self.get_flag(SF) != self.get_flag(OF):
+                self.relative_jump(instruction)
 
-            case "JG":
-                if self.get_flag(SF) == self.get_flag(OF) and self.get_flag(ZF) == 0:
-                    self.relative_jump(instruction)
+        elif instruction.operation == "JG":
+            if self.get_flag(SF) == self.get_flag(OF) and self.get_flag(ZF) == 0:
+                self.relative_jump(instruction)
 
-            case "JLE":
-                if self.get_flag(SF) != self.get_flag(OF) or self.get_flag(ZF) == 1:
-                    self.relative_jump(instruction)
+        elif instruction.operation == "JLE":
+            if self.get_flag(SF) != self.get_flag(OF) or self.get_flag(ZF) == 1:
+                self.relative_jump(instruction)
 
-            case "JGE":
-                if self.get_flag(SF) == self.get_flag(OF):
-                    self.relative_jump(instruction)
-            case _:
-                raise Exception(
-                    "There was a bug in emulator. Please contact developers. (ErrCode: 435)")
+        elif instruction.operation == "JGE":
+            if self.get_flag(SF) == self.get_flag(OF):
+                self.relative_jump(instruction)
 
+        else:
+            raise Exception(
+                "There was a bug in emulator. Please contact developers. (ErrCode: 435)")
     # ------- STACK INSTRUCTIONS: --------
     def PUSH(self, instruction):
         val = self.get_value(instruction.arguments[0])
@@ -685,51 +683,57 @@ class Emulator:
 
     def INT21h(self, instruction):
         """Loads one byte from console."""
-        match self.get_register("AH"):
-            case 0x01:  # Načíst bajt z konzole
-                if self.console_input == "":
-                    self.set_register("AL", 0)
-                    self.set_flag(ZF, 1)
-                else:
-                    self.set_register("AL", ord(self.console_input[0]))
-                    self.console_input = self.console_input[1:]
-                    self.set_flag(ZF, 0)
+        ah = self.get_register("AH")
 
-            case 0x02:  # Vypsat znak
-                self.console_output += chr(self.get_register("DL"))
-
-            case 0x09:  # Vypsat řetězec
-                offset = self.get_register("DX")
-                byte = self.get_byte("DS", offset)
-                while byte != 0:
-                    self.console_output += chr(byte)
-                    offset += 1
-                    byte = self.get_byte("DS", offset)
-
-            case 0x0A:  # Načíst řetězec
-                offset = self.get_register("DX")
-                buffer_len = self.get_byte("DS", offset)  # Length
-                max_len = min(buffer_len, len(self.console_input))
-
+        if ah == 0x01:  # Načíst bajt z konzole
+            if self.console_input == "":
+                self.set_register("AL", 0)
+                self.set_flag(ZF, 1)
+            else:
+                self.set_register("AL", ord(self.console_input[0]))
+                self.console_input = self.console_input[1:]
                 self.set_flag(ZF, 0)
 
-                if self.console_input == "":
-                    self.set_byte("DS", offset + 1, 0)
-                    self.set_byte("DS", offset + 2, 0)
-                    self.set_flag(ZF, 1)
-                    return
+        elif ah == 0x02:  # Vypsat znak
+            self.console_output += chr(self.get_register("DL"))
 
-                for i in range(max_len):
-                    char = self.console_input[0]
-                    self.console_input = self.console_input[1:]
+        elif ah == 0x09:  # Vypsat řetězec
+            offset = self.get_register("DX")
+            byte = self.get_byte("DS", offset)
+            while byte != 0:
+                self.console_output += chr(byte)
+                offset += 1
+                byte = self.get_byte("DS", offset)
 
-                    if char == "\n":
-                        i -= 1  # Protože se znak nezapočítal
-                        break
+        elif ah == 0x0A:  # Načíst řetězec
+            offset = self.get_register("DX")
+            buffer_len = self.get_byte("DS", offset)  # Length
+            max_len = min(buffer_len, len(self.console_input))
 
-                    self.set_byte("DS", offset + i + 2, ord(char))
+            self.set_flag(ZF, 0)
 
-                self.set_byte("DS", offset + 1, i+1)
+            if self.console_input == "":
+                self.set_byte("DS", offset + 1, 0)
+                self.set_byte("DS", offset + 2, 0)
+                self.set_flag(ZF, 1)
+                return
+
+            i = 0
+            for i in range(max_len):
+                char = self.console_input[0]
+                self.console_input = self.console_input[1:]
+
+                if char == "\n":
+                    i -= 1  # Protože se znak nezapočítal
+                    break
+
+                self.set_byte("DS", offset + i + 2, ord(char))
+
+            self.set_byte("DS", offset + 1, i + 1)
+
+        else:
+            # Optional: handle unexpected AH codes here
+            pass
 
     def INTO(self, instruction):
         if self.get_flag(OF) == 1:

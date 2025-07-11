@@ -2,7 +2,7 @@ from data import *
 from converting_functions import *
 
 
-def parse_next_instruction(program, address) -> tuple['Instruction', int]:
+def parse_next_instruction(program, address):
     """Just in time dissasembler"""
     instruction = Instruction()
     span = 0
@@ -92,24 +92,27 @@ def parse_next_instruction(program, address) -> tuple['Instruction', int]:
         if instruction.modrm is None:
             instruction.modrm = ModRM(load_next(), arg[1] == "b", load_next)
 
-        match arg[0]:
-            case "G":
-                instruction.arguments.append(instruction.modrm.reg)
-            case "E":
-                rm = instruction.modrm.rm
-                if isinstance(rm, Memmory) and instruction.prefix is not None:
-                    # To remove ":" from for ex. "ES:"
-                    rm.segment = instruction.prefix[:-1]
-                instruction.arguments.append(rm)
-            case "S":
-                instruction.arguments.append(
-                    Register(SEG_REGS[instruction.modrm.reg_val])
-                )
-            case "M":
-                raise NotImplementedError(
-                    "Not relevant for KSI emulator.")  # TODO: better hláška
-            case _:
-                raise AssertionError("Unrecognised instruction property")
+        if arg[0] == "G":
+            instruction.arguments.append(instruction.modrm.reg)
+
+        elif arg[0] == "E":
+            rm = instruction.modrm.rm
+            if isinstance(rm, Memmory) and instruction.prefix is not None:
+                # To remove ":" from for ex. "ES:"
+                rm.segment = instruction.prefix[:-1]
+            instruction.arguments.append(rm)
+
+        elif arg[0] == "S":
+            instruction.arguments.append(
+                Register(SEG_REGS[instruction.modrm.reg_val])
+            )
+
+        elif arg[0] == "M":
+            raise NotImplementedError(
+                "Not relevant for KSI emulator.")  # TODO: better hláška
+
+        else:
+            raise AssertionError("Unrecognised instruction property")
 
     return instruction, span
 
@@ -117,13 +120,13 @@ def parse_next_instruction(program, address) -> tuple['Instruction', int]:
 class Instruction:
     def __init__(self):
         self.operation: str = None
-        self.prefix: None | str = None  # None | "DS" | "CS" | ...
-        self.arguments: list[Parameter] = []
+        self.prefix = None  # None | "DS" | "CS" | ...
+        self.arguments = []
 
         self.size = 0   # 0 for RET; 1 for MOV AL, AH; 2 for MOV AX, BX
 
         self.bytes = []  # Aspoň aby tu něco bylo
-        self.modrm: ModRM | None = None
+        self.modrm = None
 
 
 class ModRM:
@@ -177,7 +180,7 @@ class Pointer:
 
 
 class Memmory:
-    def __init__(self, source: str | None, displacement: int, segment="DS"):
+    def __init__(self, source: str, displacement: int, segment="DS"):
         self.displacement: int = displacement
         self.segment = segment
 
@@ -185,4 +188,4 @@ class Memmory:
         self.source: str = source if source is not None else ""
 
 
-Parameter = Register | Immutable | Memmory | Pointer
+Parameter = int

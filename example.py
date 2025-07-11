@@ -4,52 +4,32 @@ from emulator import Emulator
 # Dá se i načíst ze souboru (.asm)
 code = """
 segment code
-..start
-        MOV AX, stack
-        MOV SS, AX
-        MOV SP, top
-
-        POP AX          ; F_1
-        POP BX          ; F_0
-        POP DX          ; n
-
-        PUSH BX         ; vratim F_0
-        CMP DX, 1
-        JL end          ; pokud je n = 0, program skonci
-
-        PUSH AX         ; vratim F_1
-
-        CMP DX, 2
-        JL end
-
-loop:
-        CALL func
-        DEC DX
-        CMP DX, 2
-        JL end
-        JNC loop
-
-func:
-        POP AX         ; F_n-1
-        POP BX         ; F_n-2
-        
-        PUSH AX        ; F_n-1
-        ADD AX, BX     ; F_n
-        POP CX         ; vratim si F_n-1
-        PUSH BX        ; vratim F_n-2
-        PUSH CX        ; vratim f_n-1
-        PUSH AX        ; ulozim F_n
-        RET
-
-end:
-        HLT
-
-segment stack
-        resb 65530
-top:    dw 1  ; F_1
-        dw 0  ; F_0
-        dw 3  ; n
-
+        MOV BX, data
+        MOV DS, BX
+        MOV DL, [nums]
+        MOV DI, 1
+cycle   MOV BL, [nums+DI]
+        CMP BL, 0
+        JNZ nozero
+        JMP end
+nozero  CMP BL, DL
+        JB bellow
+        JMP else
+bellow  INC BL
+        JMP endif
+else    JA above
+        JMP endif
+above   DEC BL
+endif   MOV byte [nums+DI], BL
+        ADD DI,1
+        JMP cycle
+end     HLT
+segment data
+nums    db 64
+        db 66
+        db 64
+        db 9
+        db 0
 
 """
 
