@@ -1,11 +1,8 @@
 
-Ahoj, díky že jsi mě otevřel.
+# py-ass-emul
 
-Hotový parciální disassembler a náznak assembleru je v souboru disassembler.py. V emulátor pak najdete -nečekaně- v souboru emulator_01.py.
+> ! This is a production version to work on older version of python 
+(it wasn't updated much good - the code looks trash, but it works :)
 
-Budu rád za jakoukoli pomoc nebo zpětnou vazbu.
-
-Varování: kód není čitelný
-
-PS: Pokud nejsi ORG této soutěže, prosím odejdi ;-)
+For official version go to the main branch 
 
