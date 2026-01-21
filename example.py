@@ -1,5 +1,5 @@
-from assembler import assemble
-from emulator import Emulator
+from py_ass_emul.assembler import assemble
+from py_ass_emul.emulator import Emulator
 
 # Dá se i načíst ze souboru (.asm)
 code = """
@@ -54,21 +54,23 @@ top:    dw 1  ; F_1
 """
 
 
-# Převést na bajtkód
+# Convert to bytecode
 program, start, lines_info = assemble(code)
 
-# Inicializovat tím emulátor
+# Initialise emulator with the values
 e = Emulator(program, start, lines_info)
 
-# [volitelné] Nastavit vstup konzole, upravit maximální počet instrukcí, vypnutí debug módu (vypisování jednotlivých kroků)
+# [optional] Set the input of console, edit limit of instructions, 
+#   turning off debug mode (stops writing debug info to stdout)
 e.console_input = "Hello\nWorld\n"
 e.max_instructions = 100_000
 # e.debugging_mode = False
 
-# Supstit
+# Start
 e.run()
 
-# Výsledek můžete pozorovat např. na registrech, výstupu konzole nebo na statistikách instrukcí
+# Results can be seen in registers, console output, 
+#   statistics of instructions or memmory
 print(e.registers)
 print("Console output:", e.console_output.replace("\n", "\\n"))
 print(e.statistics)
