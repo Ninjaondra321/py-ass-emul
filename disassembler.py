@@ -10,7 +10,8 @@ def parse_next_instruction(program, address) -> tuple['Instruction', int]:
     def load_next():
         nonlocal span
         byte = program[address + span]
-        assert byte is not None, "Načítáte nedefinovaný bit jako instrukci. Nezapoměli jste HLT??"
+        assert byte is not None, \
+            "Undefined byte is being loaded. Perhaps you have forgotten HLT?"
         span += 1
         instruction.bytes.append(byte)
         return byte
@@ -106,8 +107,7 @@ def parse_next_instruction(program, address) -> tuple['Instruction', int]:
                     Register(SEG_REGS[instruction.modrm.reg_val])
                 )
             case "M":
-                raise NotImplementedError(
-                    "Not relevant for KSI emulator.")  # TODO: better hláška
+                raise NotImplementedError()
             case _:
                 raise AssertionError("Unrecognised instruction property")
 

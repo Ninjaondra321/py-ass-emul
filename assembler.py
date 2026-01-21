@@ -125,9 +125,7 @@ def assemble(code: str) -> tuple[list[int], tuple[int, int], dict[int, tuple[int
                 segment_bytecode), labels_segment)
 
             if len(bytes) != info["expected_length"]:
-                # 844 - random number, kdybych někde jinde přidával stejnou message
-                raise AssertionError(
-                    f"Chyba emulátoru. Prosím napiš na Diskusní fórum úlohy. (ErrCode: 844 - neočekávaný počet bajtů)")
+                raise AssertionError("Unexpected error occured. Please contact package owner.")
 
             segment_bytecode.extend(bytes)
 
@@ -161,9 +159,7 @@ def parse_line_parts(line: str) -> tuple[str, str, list[str]]:
         return line, "", []
 
     line, _ = split_on(line, ";")
-
     label, line = line.split(" ", 1)  # If no label, empty string
-
     instr, line = split_on(line, " ")
 
     instr = instr.upper()
@@ -186,7 +182,6 @@ def parse_line_parts(line: str) -> tuple[str, str, list[str]]:
             updated_args.append(arg)
 
     args = updated_args
-
     return label, instr, args
 
 
