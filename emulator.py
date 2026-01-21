@@ -1,5 +1,4 @@
 from disassembler import *
-from assembler import assemble
 from converting_functions import *
 
 
